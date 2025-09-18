@@ -1,0 +1,310 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AgriConnect — Dashboard</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --accent:#22c55e; --muted:#94a3b8; --glass: rgba(255,255,255,0.03);
+      --danger:#ef4444; --glass-2: rgba(255,255,255,0.02);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#08122a 0%, #071028 100%);color:#e6eef8}
+    .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+    .sidebar{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:20px;border-right:1px solid rgba(255,255,255,0.03)}
+    .brand{font-weight:700;letter-spacing:0.4px;font-size:20px;margin-bottom:18px;display:flex;align-items:center;gap:10px}
+    .logo{width:40px;height:40px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#06b6d4);display:flex;align-items:center;justify-content:center;font-weight:800}
+    nav a{display:block;padding:10px;border-radius:8px;color:var(--muted);text-decoration:none;margin-bottom:6px}
+    nav a.active{background:var(--glass);color:var(--accent)}
+    .main{padding:20px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.02)}
+    .card h3{margin:0;font-size:14px;color:var(--muted)}
+    .big{font-size:28px;margin-top:8px}
+    .alert{padding:10px;border-radius:8px;background:linear-gradient(90deg,rgba(239,68,68,0.12), rgba(239,68,68,0.06));color:var(--danger);display:flex;align-items:center;gap:10px}
+    .grid-2{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px}
+    .table{width:100%;border-collapse:collapse;font-size:13px}
+    .table th,.table td{padding:8px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.03);color:#d7e7f7}
+    .muted{color:var(--muted)}
+    .market-list{display:grid;gap:8px}
+    .product{display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--glass-2);border-radius:8px}
+    .btn{padding:8px 10px;border-radius:8px;background:linear-gradient(90deg,var(--accent),#10b981);color:#031019;border:none;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.03);color:var(--muted)}
+    .chart-wrap{height:240px}
+    .small{font-size:12px}
+    .footer{margin-top:18px;color:var(--muted);font-size:13px}
+    /* responsive */
+    @media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{display:flex;gap:12px;overflow:auto}.grid-2{grid-template-columns:1fr;}.topbar{flex-direction:column;align-items:flex-start}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">A</div>AgriConnect</div>
+      <div class="muted">Smart agriculture — live insights</div>
+      <nav style="margin-top:14px">
+        <a href="#" class="active">Dashboard</a>
+        <a href="#market">Marketplace</a>
+        <a href="#iot">IoT Devices</a>
+        <a href="#reports">Reports</a>
+        <a href="#settings">Settings</a>
+      </nav>
+      <div style="margin-top:14px" class="footer">Logged in as <strong>Farm Owner</strong></div>
+    </aside><main class="main">
+  <div class="topbar">
+    <div>
+      <h1 style="margin:0">Dashboard</h1>
+      <div class="muted small">Overview of live weather, soil sensors, prices & marketplace</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <input id="search" placeholder="Search crops, buyers..." style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+      <button class="btn" onclick="refreshNow()">Refresh</button>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Live Weather Alerts</h3>
+      <div id="weatherSummary" class="big">Loading…</div>
+      <div id="weatherDetails" class="muted small">—</div>
+    </div>
+
+    <div class="card">
+      <h3>Soil Health (IoT)</h3>
+      <div id="soilIndex" class="big">—</div>
+      <div id="soilDetails" class="muted small">Moisture • pH • NPK</div>
+    </div>
+
+    <div class="card">
+      <h3>Crop Price Tracker</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div id="avgPrice" class="big">—</div>
+          <div class="muted small">Avg market price (last 7 days)</div>
+        </div>
+        <div style="width:160px"><canvas id="priceChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Direct Farmer-to-Buyer Sales</h3>
+      <div class="muted small">Active listings</div>
+      <div id="listingCount" class="big">0</div>
+      <div style="margin-top:8px"><button class="btn ghost" onclick="openPostModal()">Post Product</button></div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <section class="card">
+      <h3>Field & Sensors (Live)</h3>
+      <div style="margin-top:10px" id="sensorsArea">
+        <!-- sensors list inserted by JS -->
+      </div>
+      <div style="margin-top:12px" id="alertsArea"></div>
+    </section>
+
+    <aside class="card" id="market">
+      <h3>Marketplace</h3>
+      <div class="market-list" id="marketList">
+        <!-- products inserted by JS -->
+      </div>
+      <div style="margin-top:12px" class="muted small">Buyers can contact via chat or call-after purchase</div>
+    </aside>
+  </div>
+
+  <section class="card" id="reports" style="margin-top:14px">
+    <h3>Recent Transactions & Activity</h3>
+    <table class="table" id="txTable">
+      <thead><tr><th>Date</th><th>Type</th><th>Crop</th><th>Price/kg</th><th>Qty (kg)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <div class="footer">Version 1.0 • Demo dashboard — replace mock endpoints with your backend & APIs</div>
+</main>
+
+  </div>  <!-- Modal: Post Product -->  <div id="postModal" style="display:none;position:fixed;inset:0;background:rgba(2,6,23,0.6);align-items:center;justify-content:center">
+    <div style="background:var(--card);padding:18px;border-radius:12px;max-width:420px;margin:auto">
+      <h3 style="margin-top:0">Post Product</h3>
+      <div style="display:grid;gap:8px">
+        <input id="p_name" placeholder="Crop name" />
+        <input id="p_price" placeholder="Price per kg" />
+        <input id="p_qty" placeholder="Quantity (kg)" />
+        <textarea id="p_desc" placeholder="Short description" rows="3"></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn ghost" onclick="closePostModal()">Cancel</button>
+          <button class="btn" onclick="postProduct()">Post</button>
+        </div>
+      </div>
+    </div>
+  </div>  <script>
+    // ------------------------
+    // Mock data & utilities
+    // ------------------------
+    const mockSensors = [
+      {id:'S-1',name:'Field North',moisture:35,ph:6.4,N:12,P:8,K:90,temp:28},
+      {id:'S-2',name:'Field East',moisture:22,ph:5.9,N:8,P:10,K:60,temp:30}
+    ];
+
+    const mockPrices = {labels:[],data:[]};
+    for(let i=6;i>=0;i--){
+      const d = new Date(); d.setDate(d.getDate()-i);
+      mockPrices.labels.push(d.toISOString().slice(0,10));
+      mockPrices.data.push((Math.random()*10+30).toFixed(2));
+    }
+
+    let products = [
+      {id:1,name:'Tomato - Fresh',price:20,qty:100,desc:'Organic, no chemicals',seller:'Farmer A'},
+      {id:2,name:'Red Chillies',price:120,qty:40,desc:'Sun-dried, spicy',seller:'Farmer B'}
+    ];
+
+    let txs = [
+      {date:'2025-09-12',type:'Sale',crop:'Tomato',price:19.5,qty:50},
+      {date:'2025-09-11',type:'Purchase',crop:'Fertilizer',price:300,qty:1}
+    ];
+
+    // ------------------------
+    // Charts
+    // ------------------------
+    const priceCtx = document.getElementById('priceChart').getContext('2d');
+    const priceChart = new Chart(priceCtx,{
+      type:'line',data:{labels:mockPrices.labels, datasets:[{label:'Price/kg',data:mockPrices.data,fill:true,tension:0.4}]},options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{ticks:{beginAtZero:false}}}}
+    });
+
+    // ------------------------
+    // Render helpers
+    // ------------------------
+    function renderSensors(){
+      const area = document.getElementById('sensorsArea'); area.innerHTML='';
+      mockSensors.forEach(s=>{
+        const el = document.createElement('div'); el.className='product';
+        el.innerHTML = `<div><strong>${s.name}</strong><div class='muted small'>ID: ${s.id}</div></div>
+                        <div style='text-align:right'><div class='small'>M: ${s.moisture}%</div><div class='small'>pH: ${s.ph}</div></div>`;
+        area.appendChild(el);
+      });
+    }
+
+    function renderAlerts(){
+      const a = document.getElementById('alertsArea'); a.innerHTML='';
+      const alerts = [];
+      mockSensors.forEach(s=>{ if(s.moisture<25) alerts.push(`${s.name}: Low soil moisture (${s.moisture}%)`); if(s.ph<5.8) alerts.push(`${s.name}: Low pH (${s.ph})`); });
+      if(alerts.length){
+        const div = document.createElement('div'); div.className='alert';
+        div.innerHTML = `<div><strong>Alerts:</strong><div class='small'>${alerts.join(' • ')}</div></div>`;
+        a.appendChild(div);
+      } else {
+        a.innerHTML = `<div class='muted small'>No critical alerts</div>`;
+      }
+    }
+
+    function renderMarket(){
+      const ml = document.getElementById('marketList'); ml.innerHTML='';
+      products.forEach(p=>{
+        const node = document.createElement('div'); node.className='product';
+        node.innerHTML = `<div><strong>${p.name}</strong><div class='muted small'>${p.desc}</div></div>
+                          <div style='text-align:right'><div><strong>₹ ${p.price}</strong>/kg</div><div class='small'>${p.qty} kg</div><div style='margin-top:6px'><button class='btn' onclick='contactSeller(${p.id})'>Contact</button></div></div>`;
+        ml.appendChild(node);
+      });
+      document.getElementById('listingCount').innerText = products.length;
+    }
+
+    function renderTx(){
+      const tbody = document.querySelector('#txTable tbody'); tbody.innerHTML='';
+      txs.forEach(t=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td>${t.date}</td><td>${t.type}</td><td>${t.crop}</td><td>₹ ${t.price}</td><td>${t.qty}</td>`; tbody.appendChild(tr); });
+    }
+
+    function renderSummary(){
+      // weather summary (mock)
+      const wS = document.getElementById('weatherSummary');
+      const wD = document.getElementById('weatherDetails');
+      // for real data: call fetchWeather()
+      wS.innerText = 'Light rain — 26°C';
+      wD.innerText = 'Wind: 10 km/h • Humidity: 78% • Next 6h: heavy showers possible';
+
+      // soil summary index
+      const si = document.getElementById('soilIndex');
+      // simple composite score example
+      const avgMoist = (mockSensors.reduce((s,x)=>s+x.moisture,0)/mockSensors.length).toFixed(0);
+      const avgPh = (mockSensors.reduce((s,x)=>s+x.ph,0)/mockSensors.length).toFixed(1);
+      si.innerText = `${avgMoist}% • pH ${avgPh}`;
+
+      // avg price
+      const avg = (mockPrices.data.reduce((s,x)=>s+parseFloat(x),0)/mockPrices.data.length).toFixed(2);
+      document.getElementById('avgPrice').innerText = `₹ ${avg}`;
+      document.getElementById('avgPrice').title = 'Average price per kg (last 7 days)';
+    }
+
+    // ------------------------
+    // Interactions
+    // ------------------------
+    function contactSeller(id){
+      const p = products.find(x=>x.id===id);
+      alert(`Contacting seller ${p.seller} for ${p.name}. (demo)\nEmail: seller@example.com`);
+    }
+
+    function openPostModal(){ document.getElementById('postModal').style.display='flex'; }
+    function closePostModal(){ document.getElementById('postModal').style.display='none'; }
+    function postProduct(){
+      const name = document.getElementById('p_name').value || 'Unknown';
+      const price = parseFloat(document.getElementById('p_price').value) || 0;
+      const qty = parseFloat(document.getElementById('p_qty').value) || 0;
+      const desc = document.getElementById('p_desc').value || '';
+      const id = products.length?Math.max(...products.map(p=>p.id))+1:1;
+      products.unshift({id,name,price,qty,desc,seller:'You'});
+      renderMarket(); renderTx(); closePostModal();
+      txs.unshift({date:new Date().toISOString().slice(0,10),type:'Listing',crop:name,price,qty});
+      renderTx();
+    }
+
+    function refreshNow(){
+      // In real app: re-fetch sensors, prices, weather from APIs
+      simulateRealtimeUpdate();
+    }
+
+    // ------------------------
+    // Simulated realtime updates
+    // ------------------------
+    function simulateRealtimeUpdate(){
+      // slowly randomize sensor values
+      mockSensors.forEach(s=>{
+        s.moisture = Math.max(10, Math.min(90, s.moisture + (Math.random()*6-3)) );
+        s.ph = +(s.ph + (Math.random()*0.2-0.1)).toFixed(2);
+      });
+      // update prices
+      const newPrice = (Math.random()*10+30).toFixed(2);
+      mockPrices.labels.push(new Date().toISOString().slice(0,10));
+      mockPrices.data.push(newPrice);
+      if(mockPrices.data.length>14){ mockPrices.data.shift(); mockPrices.labels.shift(); }
+      priceChart.data.labels = mockPrices.labels; priceChart.data.datasets[0].data = mockPrices.data; priceChart.update();
+
+      renderSensors(); renderAlerts(); renderSummary(); renderMarket();
+    }
+
+    // ------------------------
+    // Example: how to plug real Weather API (OpenWeatherMap)
+    // ------------------------
+    async function fetchWeather(){
+      /*
+      const key = 'YOUR_OPENWEATHERMAP_API_KEY';
+      const lat = 'YOUR_LAT'; const lon = 'YOUR_LON';
+      const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${key}`);
+      const data = await res.json();
+      document.getElementById('weatherSummary').innerText = `${data.weather[0].description} — ${data.main.temp}°C`;
+      document.getElementById('weatherDetails').innerText = `Wind: ${data.wind.speed} m/s • Hum: ${data.main.humidity}%`;
+      */
+    }
+
+    // ------------------------
+    // Startup
+    // ------------------------
+    renderSensors(); renderAlerts(); renderMarket(); renderTx(); renderSummary();
+    // run simulated updates every 15s (demo)
+    setInterval(simulateRealtimeUpdate,15000);
+  </script></body>
+</html>
